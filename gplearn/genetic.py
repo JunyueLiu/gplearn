@@ -37,7 +37,8 @@ MAX_INT = np.iinfo(np.int32).max
 
 def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
     """Private function used to build a batch of programs within a job."""
-    n_samples, n_features = X.shape
+    # todo
+    n_samples, n_stocks, n_features = X.shape
     # Unpack parameters
     tournament_size = params['tournament_size']
     function_set = params['function_set']
@@ -288,7 +289,7 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
             sample_weight = check_array(sample_weight, ensure_2d=False)
 
         if isinstance(self, ClassifierMixin):
-            X, y = check_X_y(X, y, y_numeric=False)
+            # X, y = check_X_y(X, y, y_numeric=False)
             check_classification_targets(y)
 
             if self.class_weight:
@@ -307,10 +308,11 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                                  % n_trim_classes)
             self.n_classes_ = len(self.classes_)
 
-        else:
-            X, y = check_X_y(X, y, y_numeric=True)
+        # else:
+            # X, y = check_X_y(X, y, y_numeric=True)
 
-        _, self.n_features_ = X.shape
+        # todo three dimension
+        _, self.n_stocks, self.n_features_ = X.shape
 
         hall_of_fame = self.hall_of_fame
         if hall_of_fame is None:
@@ -361,7 +363,7 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                 raise ValueError('Unsupported metric: %s' % self.metric)
             self._metric = _fitness_map[self.metric]
         elif isinstance(self, TransformerMixin):
-            if self.metric not in ('pearson', 'spearman'):
+            if self.metric not in ('pearson', 'spearman', 'icir'):
                 raise ValueError('Unsupported metric: %s' % self.metric)
             self._metric = _fitness_map[self.metric]
 
@@ -857,7 +859,8 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
         if not hasattr(self, '_program'):
             raise NotFittedError('SymbolicRegressor not fitted.')
 
-        X = check_array(X)
+        # X = check_array(X)
+        # todo
         _, n_features = X.shape
         if self.n_features_ != n_features:
             raise ValueError('Number of features of the model must match the '
@@ -1151,7 +1154,7 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
         """
         if not hasattr(self, '_program'):
             raise NotFittedError('SymbolicClassifier not fitted.')
-
+        # todo
         X = check_array(X)
         _, n_features = X.shape
         if self.n_features_ != n_features:
@@ -1472,6 +1475,7 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
         if not hasattr(self, '_best_programs'):
             raise NotFittedError('SymbolicTransformer not fitted.')
 
+        # todo
         X = check_array(X)
         _, n_features = X.shape
         if self.n_features_ != n_features:

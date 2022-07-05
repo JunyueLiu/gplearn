@@ -12,7 +12,7 @@ from sklearn.linear_model import Ridge
 from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.utils._testing import assert_equal, assert_almost_equal
+# from sklearn.utils._testing import assert_equal, assert_almost_equal
 from sklearn.utils.validation import check_random_state
 
 from gplearn.genetic import SymbolicClassifier, SymbolicRegressor
@@ -213,3 +213,27 @@ def test_symbolic_classifier():
                 '[label="area error", fillcolor="#60a6f6"] ;\n4 -> 6 ;\n4 -> '
                 '5 ;\n0 -> 4 ;\n0 -> 1 ;\n}')
     assert_equal(dot_data, expected)
+
+def test_2d_symbolic_transformer():
+    """Check that SymbolicTransformer example works"""
+
+    rng = check_random_state(0)
+    data = np.random.randn(100, 4000, 10)
+    target = np.random.randn(100, 4000)
+    function_set = ['add', 'sub', 'mul', 'div', 'sqrt', 'log',
+                    'abs', 'neg', 'inv', 'max', 'min']
+    gp = SymbolicTransformer(generations=20, population_size=2000,
+                             hall_of_fame=100, n_components=10,
+                             function_set=function_set,
+                             parsimony_coefficient=0.0005,
+                             max_samples=0.9,
+                             random_state=0,
+                             metric='icir'
+                             )
+    gp.fit(data, target)
+
+    gp_features = gp.transform(data)
+
+
+if __name__ == '__main__':
+    test_2d_symbolic_transformer()

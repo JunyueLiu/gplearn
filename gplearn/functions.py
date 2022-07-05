@@ -89,6 +89,7 @@ def make_function(function, name, arity, wrap=True):
         raise ValueError('wrap must be an bool, got %s' % type(wrap))
 
     # Check output shape
+    # todo two dimension
     args = [np.ones(10) for _ in range(arity)]
     try:
         function(*args)
@@ -103,10 +104,13 @@ def make_function(function, name, arity, wrap=True):
                          'input vectors.' % name)
 
     # Check closure for zero & negative input arguments
+    # todo two dimension
     args = [np.zeros(10) for _ in range(arity)]
     if not np.all(np.isfinite(function(*args))):
         raise ValueError('supplied function %s does not have closure against '
                          'zeros in argument vectors.' % name)
+
+    # todo two dimension
     args = [-1 * np.ones(10) for _ in range(arity)]
     if not np.all(np.isfinite(function(*args))):
         raise ValueError('supplied function %s does not have closure against '
