@@ -556,9 +556,11 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                 hall_of_fame = fitness.argsort()[::-1][:self.hall_of_fame]
             else:
                 hall_of_fame = fitness.argsort()[:self.hall_of_fame]
+            # todo
             evaluation = np.array([gp.execute(X) for gp in
                                    [self._programs[-1][i] for
                                     i in hall_of_fame]])
+            evaluation = evaluation.reshape((self.hall_of_fame, -1))
             if self.metric == 'spearman':
                 evaluation = np.apply_along_axis(rankdata, 1, evaluation)
 
@@ -1476,15 +1478,15 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
             raise NotFittedError('SymbolicTransformer not fitted.')
 
         # todo
-        X = check_array(X)
-        _, n_features = X.shape
+        # X = check_array(X)
+        _, n_stocks, n_features = X.shape
         if self.n_features_ != n_features:
             raise ValueError('Number of features of the model must match the '
                              'input. Model n_features is %s and input '
                              'n_features is %s.'
                              % (self.n_features_, n_features))
 
-        X_new = np.array([gp.execute(X) for gp in self._best_programs]).T
+        X_new = np.array([gp.execute(X) for gp in self._best_programs]).transpose((1, 2, 0))
 
         return X_new
 

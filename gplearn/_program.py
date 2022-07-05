@@ -357,9 +357,9 @@ class _Program(object):
         # Check for single-node programs
         node = self.program[0]
         if isinstance(node, float):
-            return np.repeat(node, X.shape[0])
+            return np.ones(X.shape[:2]) * node
         if isinstance(node, int):
-            return X[:, node]
+            return X[:, :, node]
 
         apply_stack = []
 

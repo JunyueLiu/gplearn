@@ -18,6 +18,8 @@ from typing import Union
 
 __all__ = ['make_function']
 
+from gplearn.basic_operator import add
+
 
 class _Function(object):
 
@@ -173,6 +175,8 @@ sin1 = _Function(function=np.sin, name='sin', arity=1)
 cos1 = _Function(function=np.cos, name='cos', arity=1)
 tan1 = _Function(function=np.tan, name='tan', arity=1)
 sig1 = _Function(function=_sigmoid, name='sig', arity=1)
+
+add3 = _Function(function=add, name='add3', arity=2)
 
 _function_map = {'add': add2,
                  'sub': sub2,
