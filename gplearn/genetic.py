@@ -21,7 +21,7 @@ from sklearn.base import BaseEstimator
 from sklearn.base import RegressorMixin, TransformerMixin, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.utils import compute_sample_weight
-from sklearn.utils.validation import check_array, _check_sample_weight
+from sklearn.utils.validation import check_X_y, check_array
 from sklearn.utils.multiclass import check_classification_targets
 
 from ._program import _Program
@@ -37,7 +37,8 @@ MAX_INT = np.iinfo(np.int32).max
 
 def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
     """Private function used to build a batch of programs within a job."""
-    n_samples, n_features = X.shape
+    # todo
+    n_samples, n_stocks, n_features = X.shape
     # Unpack parameters
     tournament_size = params['tournament_size']
     function_set = params['function_set']
@@ -165,7 +166,6 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
 
     @abstractmethod
     def __init__(self,
-                 *,
                  population_size=1000,
                  hall_of_fame=None,
                  n_components=None,
@@ -286,10 +286,10 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
 
         # Check arrays
         if sample_weight is not None:
-            sample_weight = _check_sample_weight(sample_weight, X)
+            sample_weight = check_array(sample_weight, ensure_2d=False)
 
         if isinstance(self, ClassifierMixin):
-            X, y = self._validate_data(X, y, y_numeric=False)
+            # X, y = check_X_y(X, y, y_numeric=False)
             check_classification_targets(y)
 
             if self.class_weight:
@@ -308,8 +308,11 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                                  % n_trim_classes)
             self.n_classes_ = len(self.classes_)
 
-        else:
-            X, y = self._validate_data(X, y, y_numeric=True)
+        # else:
+            # X, y = check_X_y(X, y, y_numeric=True)
+
+        # todo three dimension
+        _, self.n_stocks, self.n_features_ = X.shape
 
         hall_of_fame = self.hall_of_fame
         if hall_of_fame is None:
@@ -360,7 +363,7 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                 raise ValueError('Unsupported metric: %s' % self.metric)
             self._metric = _fitness_map[self.metric]
         elif isinstance(self, TransformerMixin):
-            if self.metric not in ('pearson', 'spearman'):
+            if self.metric not in ('pearson', 'spearman', 'icir'):
                 raise ValueError('Unsupported metric: %s' % self.metric)
             self._metric = _fitness_map[self.metric]
 
@@ -393,11 +396,10 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                              'order: (min_depth, max_depth).')
 
         if self.feature_names is not None:
-            if self.n_features_in_ != len(self.feature_names):
+            if self.n_features_ != len(self.feature_names):
                 raise ValueError('The supplied `feature_names` has different '
                                  'length to n_features. Expected %d, got %d.'
-                                 % (self.n_features_in_,
-                                    len(self.feature_names)))
+                                 % (self.n_features_, len(self.feature_names)))
             for feature_name in self.feature_names:
                 if not isinstance(feature_name, str):
                     raise ValueError('invalid type %s found in '
@@ -787,7 +789,6 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
     """
 
     def __init__(self,
-                 *,
                  population_size=1000,
                  generations=20,
                  tournament_size=20,
@@ -858,13 +859,14 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
         if not hasattr(self, '_program'):
             raise NotFittedError('SymbolicRegressor not fitted.')
 
-        X = check_array(X)
+        # X = check_array(X)
+        # todo
         _, n_features = X.shape
-        if self.n_features_in_ != n_features:
+        if self.n_features_ != n_features:
             raise ValueError('Number of features of the model must match the '
                              'input. Model n_features is %s and input '
                              'n_features is %s.'
-                             % (self.n_features_in_, n_features))
+                             % (self.n_features_, n_features))
 
         y = self._program.execute(X)
 
@@ -1075,7 +1077,6 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
     """
 
     def __init__(self,
-                 *,
                  population_size=1000,
                  generations=20,
                  tournament_size=20,
@@ -1153,14 +1154,14 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
         """
         if not hasattr(self, '_program'):
             raise NotFittedError('SymbolicClassifier not fitted.')
-
+        # todo
         X = check_array(X)
         _, n_features = X.shape
-        if self.n_features_in_ != n_features:
+        if self.n_features_ != n_features:
             raise ValueError('Number of features of the model must match the '
                              'input. Model n_features is %s and input '
                              'n_features is %s.'
-                             % (self.n_features_in_, n_features))
+                             % (self.n_features_, n_features))
 
         scores = self._program.execute(X)
         proba = self._transformer(scores)
@@ -1387,7 +1388,6 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
     """
 
     def __init__(self,
-                 *,
                  population_size=1000,
                  hall_of_fame=100,
                  n_components=10,
@@ -1457,15 +1457,6 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
         output = str([gp.__str__() for gp in self])
         return output.replace("',", ",\n").replace("'", "")
 
-    def _more_tags(self):
-        return {
-            "_xfail_checks": {
-                "check_sample_weights_invariance": (
-                    "zero sample_weight is not equivalent to removing samples"
-                ),
-            }
-        }
-
     def transform(self, X):
         """Transform X according to the fitted transformer.
 
@@ -1484,13 +1475,14 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
         if not hasattr(self, '_best_programs'):
             raise NotFittedError('SymbolicTransformer not fitted.')
 
+        # todo
         X = check_array(X)
         _, n_features = X.shape
-        if self.n_features_in_ != n_features:
+        if self.n_features_ != n_features:
             raise ValueError('Number of features of the model must match the '
                              'input. Model n_features is %s and input '
                              'n_features is %s.'
-                             % (self.n_features_in_, n_features))
+                             % (self.n_features_, n_features))
 
         X_new = np.array([gp.execute(X) for gp in self._best_programs]).T
 

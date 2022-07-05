@@ -374,8 +374,9 @@ class _Program(object):
             while len(apply_stack[-1]) == apply_stack[-1][0].arity + 1:
                 # Apply functions that have sufficient arguments
                 function = apply_stack[-1][0]
-                terminals = [np.repeat(t, X.shape[0]) if isinstance(t, float)
-                             else X[:, t] if isinstance(t, int)
+                # todo
+                terminals = [np.ones(X.shape[:2]) * t if isinstance(t, float)
+                            else X[:, :, t] if isinstance(t, int)
                              else t for t in apply_stack[-1][1:]]
                 intermediate_result = function(*terminals)
                 if len(apply_stack) != 1:

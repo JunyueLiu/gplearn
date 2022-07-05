@@ -12,6 +12,7 @@ import numbers
 
 import numpy as np
 from joblib import wrap_non_picklable_objects
+from scipy import stats
 from scipy.stats import rankdata
 
 __all__ = ['make_fitness']
@@ -89,6 +90,7 @@ def make_fitness(*, function, greater_is_better, wrap=True):
     if function.__code__.co_argcount != 3:
         raise ValueError('function requires 3 arguments (y, y_pred, w),'
                          ' got %d.' % function.__code__.co_argcount)
+    # todo
     if not isinstance(function(np.array([1, 1]),
                       np.array([2, 2]),
                       np.array([1, 1])), numbers.Number):
@@ -120,6 +122,13 @@ def _weighted_spearman(y, y_pred, w):
     y_pred_ranked = np.apply_along_axis(rankdata, 0, y_pred)
     y_ranked = np.apply_along_axis(rankdata, 0, y)
     return _weighted_pearson(y_pred_ranked, y_ranked, w)
+
+def _weighted_icir(y, y_pred, w):
+    correlation, pvalue = stats.spearmanr(y, y_pred, axis=1, nan_policy='omit')
+    c = np.diag(correlation[y.shape[0]:, :y.shape[0]])
+    icir =  np.nanmean(c * w) / np.nanstd(c * w)
+    return np.nan_to_num(icir, nan=0.)
+
 
 
 def _mean_absolute_error(y, y_pred, w):
@@ -159,9 +168,13 @@ root_mean_square_error = _Fitness(function=_root_mean_square_error,
 log_loss = _Fitness(function=_log_loss,
                     greater_is_better=False)
 
+icir = _Fitness(function=_weighted_icir, greater_is_better=True)
+
 _fitness_map = {'pearson': weighted_pearson,
                 'spearman': weighted_spearman,
                 'mean absolute error': mean_absolute_error,
                 'mse': mean_square_error,
                 'rmse': root_mean_square_error,
-                'log loss': log_loss}
+                'log loss': log_loss,
+                'icir': icir
+                }
