@@ -12,6 +12,10 @@ own custom functions.
 import numpy as np
 from joblib import wrap_non_picklable_objects
 
+import math
+from enum import Enum
+from typing import Union
+
 __all__ = ['make_function']
 
 

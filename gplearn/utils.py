@@ -10,7 +10,8 @@ import numbers
 
 import numpy as np
 from joblib import cpu_count
-
+import numba
+import talib
 
 def check_random_state(seed):
     """Turn seed into a np.random.RandomState instance
@@ -74,3 +75,44 @@ def _partition_estimators(n_estimators, n_jobs):
     starts = np.cumsum(n_estimators_per_job)
 
     return n_jobs, n_estimators_per_job.tolist(), [0] + starts.tolist()
+
+@numba.njit
+def nans(arr, dtype=np.float64) -> np.ndarray:
+    a = np.empty_like(arr, dtype)
+    a.fill(np.nan)
+    return a
+
+
+@numba.njit
+def shift(arr, num, fill_value=np.nan):
+    result = np.empty_like(arr)
+    if num > 0:
+        result[:num] = fill_value
+        result[num:] = arr[:-num]
+    elif num < 0:
+        result[num:] = fill_value
+        result[:num] = arr[-num:]
+    else:
+        result[:] = arr
+    return result
+
+
+def talib_corr(one_d_array_x: np.ndarray, one_d_array_y: np.ndarray, d: int):
+    # try:
+    #     return talib.CORREL(one_d_array_x, one_d_array_y, d)
+    # except Exception as e:
+    #     if 'inputs are all NaN' in e.args[0]:
+    #         return nans(one_d_array_x)
+    #     raise Exception(e)
+
+    # new approach to use mask to deal with nan
+    nan_mask = np.ones(one_d_array_x.shape)
+    for j in range(d, len(one_d_array_x)):
+        if np.isnan(one_d_array_x[j - d:j]).any() or np.isnan(one_d_array_y[j - d:j]).any():
+            nan_mask[j] = np.nan
+
+    one_d_array_x = np.nan_to_num(one_d_array_x)
+    one_d_array_y = np.nan_to_num(one_d_array_y)
+    corr = talib.CORREL(one_d_array_x, one_d_array_y, d)
+    corr = corr * nan_mask
+    return corr
