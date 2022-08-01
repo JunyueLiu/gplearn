@@ -8,21 +8,22 @@ own custom functions.
 # Author: Trevor Stephens <trevorstephens.com>
 #
 # License: BSD 3 clause
+import inspect
 
 import numpy as np
 from joblib import wrap_non_picklable_objects
 
 import math
 from enum import Enum
-from typing import Union
+from typing import Union, List
 
 __all__ = ['make_function']
 
-from gplearn.basic_operator import add
+from gplearn.alpha101_operator import ts_rank
+from gplearn.basic_operator import add, mul, subtract, negative, _max, _abs, _min
 
 
 class _Function(object):
-
     """A representation of a mathematical relationship, a node in a program.
 
     This object is able to be called with NumPy vectorized arguments and return
@@ -47,9 +48,20 @@ class _Function(object):
         self.function = function
         self.name = name
         self.arity = arity
+        r = inspect.getfullargspec(self.function)
+        self.args: List[str] = r.args
+        self.annotations = r.annotations  # type: Dict[str, type]
+        self.kwonlydefaults = r.kwonlydefaults
 
     def __call__(self, *args):
         return self.function(*args)
+
+    def get_arg_type(self, i: int):
+        return self.annotations[self.args[i]]
+
+    def get_position_arg_type(self):
+        return [self.annotations[a] for a in self.args]
+
 
 
 def make_function(*, function, name, arity, wrap=True):
@@ -131,64 +143,68 @@ def make_function(*, function, name, arity, wrap=True):
                      arity=arity)
 
 
-def _protected_division(x1, x2):
+def _protected_division(x1: np.ndarray, x2: np.ndarray):
     """Closure of division (x1/x2) for zero denominator."""
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(np.abs(x2) > 0.001, np.divide(x1, x2), 1.)
 
 
-def _protected_sqrt(x1):
+def _protected_sqrt(x1: np.ndarray):
     """Closure of square root for negative arguments."""
     return np.sqrt(np.abs(x1))
 
 
-def _protected_log(x1):
+def _protected_log(x1: np.ndarray):
     """Closure of log for zero and negative arguments."""
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(np.abs(x1) > 0.001, np.log(np.abs(x1)), 0.)
 
 
-def _protected_inverse(x1):
+def _protected_inverse(x1: np.ndarray):
     """Closure of inverse for zero arguments."""
     with np.errstate(divide='ignore', invalid='ignore'):
         return np.where(np.abs(x1) > 0.001, 1. / x1, 0.)
 
 
-def _sigmoid(x1):
+def _sigmoid(x1: np.ndarray):
     """Special case of logistic function to transform to probabilities."""
     with np.errstate(over='ignore', under='ignore'):
         return 1 / (1 + np.exp(-x1))
 
 
-add2 = _Function(function=np.add, name='add', arity=2)
-sub2 = _Function(function=np.subtract, name='sub', arity=2)
-mul2 = _Function(function=np.multiply, name='mul', arity=2)
+add2 = _Function(function=add, name='add', arity=2)
+sub2 = _Function(function=subtract, name='sub', arity=2)
+mul2 = _Function(function=mul, name='mul', arity=2)
 div2 = _Function(function=_protected_division, name='div', arity=2)
 sqrt1 = _Function(function=_protected_sqrt, name='sqrt', arity=1)
 log1 = _Function(function=_protected_log, name='log', arity=1)
-neg1 = _Function(function=np.negative, name='neg', arity=1)
+neg1 = _Function(function=negative, name='neg', arity=1)
 inv1 = _Function(function=_protected_inverse, name='inv', arity=1)
-abs1 = _Function(function=np.abs, name='abs', arity=1)
-max2 = _Function(function=np.maximum, name='max', arity=2)
-min2 = _Function(function=np.minimum, name='min', arity=2)
-sin1 = _Function(function=np.sin, name='sin', arity=1)
-cos1 = _Function(function=np.cos, name='cos', arity=1)
-tan1 = _Function(function=np.tan, name='tan', arity=1)
+abs1 = _Function(function=_abs, name='abs', arity=1)
+max2 = _Function(function=_max, name='max', arity=2)
+min2 = _Function(function=_min, name='min', arity=2)
+# sin1 = _Function(function=np.sin, name='sin', arity=1)
+# cos1 = _Function(function=np.cos, name='cos', arity=1)
+# tan1 = _Function(function=np.tan, name='tan', arity=1)
 sig1 = _Function(function=_sigmoid, name='sig', arity=1)
 
-add3 = _Function(function=add, name='add3', arity=2)
+ts_rank1 = _Function(function=ts_rank, name='ts_rank', arity=2)
 
-_function_map = {'add': add2,
-                 'sub': sub2,
-                 'mul': mul2,
-                 'div': div2,
-                 'sqrt': sqrt1,
-                 'log': log1,
-                 'abs': abs1,
-                 'neg': neg1,
-                 'inv': inv1,
-                 'max': max2,
-                 'min': min2,
-                 'sin': sin1,
-                 'cos': cos1,
-                 'tan': tan1}
+
+_function_map = {
+    'add': add2,
+    'sub': sub2,
+    'mul': mul2,
+    'div': div2,
+    'sqrt': sqrt1,
+    'log': log1,
+    'abs': abs1,
+    'neg': neg1,
+    'inv': inv1,
+    'max': max2,
+    'min': min2,
+    # 'sin': sin1,
+    # 'cos': cos1,
+    # 'tan': tan1,
+    'ts_rank': ts_rank1
+}

@@ -1,7 +1,7 @@
 import bottleneck as bn
 import numpy as np
 
-from factor_zoo.factor_operator import alpha101_operator
+from gplearn.factor_operator import alpha101_operator
 
 
 def cs_add(a: np.ndarray, b: np.ndarray) -> np.ndarray:

@@ -53,6 +53,8 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
     p_point_replace = params['p_point_replace']
     max_samples = params['max_samples']
     feature_names = params['feature_names']
+    int_range = params['int_range']
+    float_range = params['float_range']
 
     max_samples = int(max_samples * n_samples)
 
@@ -123,6 +125,8 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
                            metric=metric,
                            transformer=transformer,
                            const_range=const_range,
+                           int_range=int_range,
+                           float_range=float_range,
                            p_point_replace=p_point_replace,
                            parsimony_coefficient=parsimony_coefficient,
                            feature_names=feature_names,
@@ -144,19 +148,20 @@ def _parallel_evolve(n_programs, parents, X, y, sample_weight, seeds, params):
 
         curr_sample_weight[not_indices] = 0
         oob_sample_weight[indices] = 0
+        try:
+            program.raw_fitness_ = program.raw_fitness(X, y, curr_sample_weight)
+            if max_samples < n_samples:
+                # Calculate OOB fitness
+                program.oob_fitness_ = program.raw_fitness(X, y, oob_sample_weight)
 
-        program.raw_fitness_ = program.raw_fitness(X, y, curr_sample_weight)
-        if max_samples < n_samples:
-            # Calculate OOB fitness
-            program.oob_fitness_ = program.raw_fitness(X, y, oob_sample_weight)
-
-        programs.append(program)
+            programs.append(program)
+        except Exception as e:
+            print(e, program)
 
     return programs
 
 
 class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
-
     """Base class for symbolic regression / classification estimators.
 
     Warning: This class should not be used directly.
@@ -173,6 +178,8 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                  tournament_size=20,
                  stopping_criteria=0.0,
                  const_range=(-1., 1.),
+                 int_range=(1, 100),
+                 float_range=(0, 1),
                  init_depth=(2, 6),
                  init_method='half and half',
                  function_set=('add', 'sub', 'mul', 'div'),
@@ -200,6 +207,8 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
         self.tournament_size = tournament_size
         self.stopping_criteria = stopping_criteria
         self.const_range = const_range
+        self.int_range = int_range
+        self.float_range = float_range
         self.init_depth = init_depth
         self.init_method = init_method
         self.function_set = function_set
@@ -309,7 +318,7 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
             self.n_classes_ = len(self.classes_)
 
         # else:
-            # X, y = check_X_y(X, y, y_numeric=True)
+        # X, y = check_X_y(X, y, y_numeric=True)
 
         # todo three dimension
         _, self.n_stocks, self.n_features_ = X.shape
@@ -383,8 +392,8 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
                              '"grow", "full" and "half and half". Given %s.'
                              % self.init_method)
 
-        if not((isinstance(self.const_range, tuple) and
-                len(self.const_range) == 2) or self.const_range is None):
+        if not ((isinstance(self.const_range, tuple) and
+                 len(self.const_range) == 2) or self.const_range is None):
             raise ValueError('const_range should be a tuple with length two, '
                              'or None.')
 
@@ -427,6 +436,8 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
         params['function_set'] = self._function_set
         params['arities'] = self._arities
         params['method_probs'] = self._method_probs
+        params['int_range'] = self.int_range
+        params['float_range'] = self.float_range
 
         if not self.warm_start or not hasattr(self, '_programs'):
             # Free allocated memory, if any
@@ -594,7 +605,6 @@ class BaseSymbolic(BaseEstimator, metaclass=ABCMeta):
 
 
 class SymbolicRegressor(BaseSymbolic, RegressorMixin):
-
     """A Genetic Programming symbolic regressor.
 
     A symbolic regressor is an estimator that begins by building a population
@@ -876,7 +886,6 @@ class SymbolicRegressor(BaseSymbolic, RegressorMixin):
 
 
 class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
-
     """A Genetic Programming symbolic classifier.
 
     A symbolic classifier is an estimator that begins by building a population
@@ -1190,7 +1199,6 @@ class SymbolicClassifier(BaseSymbolic, ClassifierMixin):
 
 
 class SymbolicTransformer(BaseSymbolic, TransformerMixin):
-
     """A Genetic Programming symbolic transformer.
 
     A symbolic transformer is a supervised transformer that begins by building
@@ -1413,8 +1421,13 @@ class SymbolicTransformer(BaseSymbolic, TransformerMixin):
                  low_memory=False,
                  n_jobs=1,
                  verbose=0,
-                 random_state=None):
+                 random_state=None,
+                 int_range=(0, 10),
+                 float_range=(-1, 1)
+                 ):
         super(SymbolicTransformer, self).__init__(
+            int_range=int_range,
+            float_range=float_range,
             population_size=population_size,
             hall_of_fame=hall_of_fame,
             n_components=n_components,

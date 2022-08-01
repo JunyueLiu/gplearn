@@ -7,24 +7,6 @@ import numpy as np
 
 from gplearn.utils import nans, shift, talib_corr
 
-# todo
-class IndClass(Enum):
-    sector = 'sw1'
-    industries = 'sw2'
-    subindustries = 'sw3'
-
-    @staticmethod
-    def map(i: int):
-        n = i % IndClass.get_size()
-        return IndClass.__members__[IndClass._member_names_[n]]
-
-    @staticmethod
-    def get_size():
-        return len(IndClass._member_names_)
-
-    @staticmethod
-    def get_i(ind_class):
-        return IndClass._member_names_.index(ind_class.name)
 
 
 def returns(x: np.ndarray) -> np.ndarray:

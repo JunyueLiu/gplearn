@@ -19,7 +19,6 @@ from .utils import check_random_state
 
 
 class _Program(object):
-
     """A program-like representation of the evolved program.
 
     This is the underlying data-structure used by the public classes in the
@@ -127,6 +126,8 @@ class _Program(object):
                  init_method,
                  n_features,
                  const_range,
+                 int_range,
+                 float_range,
                  metric,
                  p_point_replace,
                  parsimony_coefficient,
@@ -141,19 +142,23 @@ class _Program(object):
         self.init_method = init_method
         self.n_features = n_features
         self.const_range = const_range
+        self.int_range = int_range
+        self.float_range = float_range
         self.metric = metric
         self.p_point_replace = p_point_replace
         self.parsimony_coefficient = parsimony_coefficient
         self.transformer = transformer
         self.feature_names = feature_names
         self.program = program
+        self.random_state = random_state
 
         if self.program is not None:
             if not self.validate_program():
                 raise ValueError('The supplied program is incomplete.')
         else:
             # Create a naive random program
-            self.program = self.build_program(random_state)
+            # self.program = self.build_program(random_state)
+            self.program = self.build_program2(random_state)
 
         self.raw_fitness_ = None
         self.fitness_ = None
@@ -218,6 +223,79 @@ class _Program(object):
                     if not terminal_stack:
                         return program
                     terminal_stack[-1] -= 1
+
+        # We should never get here
+        return None
+
+    def build_program2(self, random_state):
+        """Build a naive random program.
+
+        Parameters
+        ----------
+        random_state : RandomState instance
+            The random number generator.
+
+        Returns
+        -------
+        program : list
+            The flattened tree representation of the program.
+
+        """
+        if self.init_method == 'half and half':
+            method = ('full' if random_state.randint(2) else 'grow')
+        else:
+            method = self.init_method
+        max_depth = random_state.randint(*self.init_depth)
+
+        # Start a program with a function to avoid degenerative programs
+        function = random_state.randint(len(self.function_set))
+        function = self.function_set[function]
+        program = [function]
+        terminal_stack = [function.get_position_arg_type()]
+
+        while len(terminal_stack) > 0:
+            depth = len(terminal_stack)
+            choice = self.n_features + len(self.function_set)
+            choice = random_state.randint(choice)
+            needed_type = terminal_stack[-1][0]
+            # Determine if we are adding a function or terminal
+            if (depth < max_depth) and (method == 'full' or
+                                        choice <= len(self.function_set)) \
+                    and needed_type == np.ndarray:
+                function = random_state.randint(len(self.function_set))
+                function = self.function_set[function]
+                program.append(function)
+                # terminal_stack.append(function.arity)
+                terminal_stack.append(function.get_position_arg_type())
+            else:
+                # We need a terminal, add a variable or constant
+                # if self.const_range is not None:
+                #     terminal = random_state.randint(self.n_features + 1)
+                # else:
+                #     terminal = random_state.randint(self.n_features)
+                # if terminal == self.n_features:
+                #     terminal = random_state.uniform(*self.const_range)
+                #     if self.const_range is None:
+                #         # We should never get here
+                #         raise ValueError('A constant was produced with '
+                #                          'const_range=None.')
+                # needed_type = terminal_stack[-1].pop(0)
+                if needed_type == int:
+                    terminal = random_state.randint(*self.int_range)
+                elif needed_type == float:
+                    terminal = random_state.uniform(*self.float_range)
+                elif needed_type == np.ndarray:
+                    terminal = random_state.randint(self.n_features)
+                else:
+                    raise NotImplementedError()
+                terminal_stack[-1].pop(0)
+                program.append(terminal)
+                # terminal_stack[-1] -= 1
+                while len(terminal_stack[-1]) == 0:
+                    terminal_stack.pop(-1)
+                    if not terminal_stack:
+                        return program
+                    terminal_stack[-1].pop(0)
 
         # We should never get here
         return None
@@ -375,9 +453,44 @@ class _Program(object):
                 # Apply functions that have sufficient arguments
                 function = apply_stack[-1][0]
                 # todo
-                terminals = [np.ones(X.shape[:2]) * t if isinstance(t, float)
-                            else X[:, :, t] if isinstance(t, int)
-                             else t for t in apply_stack[-1][1:]]
+
+                # terminals = [np.ones(X.shape[:2]) * t if isinstance(t, float)
+                #             else X[:, :, t] if isinstance(t, int)
+                #              else t for t in apply_stack[-1][1:]]
+                args = apply_stack[-1][1:]
+                terminals = []
+                # for i in range(len(args)):
+                #     type_ = function.get_arg_type(i)
+                #     t = args[i]
+                #     if isinstance(t, (int, float)):
+                #         if type_ == np.ndarray:
+                #             terminals.append(X[:, :, int(t)])
+                #         elif type_ == int:
+                #             terminals.append(t)
+                #         elif type_ == float:
+                #             terminals.append(t)
+                #     else:
+                #         terminals.append(t)
+
+                for i in range(len(function.args)):
+                    type_ = function.get_arg_type(i)
+                    t = args[i]
+                    if isinstance(t, (int, float)):
+                        if type_ == np.ndarray:
+                            terminals.append(X[:, :, int(t)])
+                        else:
+                            terminals.append(t)
+                    else:
+                        terminals.append(t)
+                    # else:
+                    #     if type_ == int:
+                    #         t = self.random_state.randint(*self.int_range)
+                    #     elif type_ == float:
+                    #         t = self.random_state.uniform(*self.float_range)
+                    #     else:
+                    #         raise NotImplementedError('Not implement {}'.format(type_))
+                    #     terminals.append(t)
+
                 intermediate_result = function(*terminals)
                 if len(apply_stack) != 1:
                     apply_stack.pop()
@@ -549,6 +662,7 @@ class _Program(object):
             The flattened tree representation of the program.
 
         """
+        # todo
         # Get a subtree to replace
         start, end = self.get_subtree(random_state)
         removed = range(start, end)
@@ -583,7 +697,8 @@ class _Program(object):
 
         """
         # Build a new naive program
-        chicken = self.build_program(random_state)
+        # chicken = self.build_program(random_state)
+        chicken = self.build_program2(random_state)
         # Do subtree mutation via the headless chicken method!
         return self.crossover(chicken, random_state)
 
