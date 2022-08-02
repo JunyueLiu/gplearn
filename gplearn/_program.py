@@ -313,6 +313,39 @@ class _Program(object):
                     terminals[-1] -= 1
         return terminals == [-1]
 
+    def infer_types(self):
+        terminals = [0]
+        # output = ''
+        types_ = []
+        current_func = []
+        for i, node in enumerate(self.program):
+            if isinstance(node, _Function):
+                terminals.append(node.arity)
+                # output += node.name + '('
+                types_.append(_Function)
+                current_func.append(node)
+            else:
+                if isinstance(node, int):
+                    # if self.feature_names is None:
+                    #     output += 'X%s' % node
+                    # else:
+                    #     output += self.feature_names[node]
+                    var = current_func[-1]
+                    t_ = var.get_arg_type(var.arity - terminals[-1])
+                    types_.append(t_)
+                else:
+                    types_.append(float)
+                    # output += '%.3f' % node
+                terminals[-1] -= 1
+                while terminals[-1] == 0:
+                    terminals.pop()
+                    current_func.pop()
+                    terminals[-1] -= 1
+                    # output += ')'
+                # if i != len(self.program) - 1:
+                #     # output += ', '
+        return types_
+
     def __str__(self):
         """Overloads `print` output of the object to resemble a LISP tree."""
         terminals = [0]
@@ -622,7 +655,10 @@ class _Program(object):
             program = self.program
         # Choice of crossover points follows Koza's (1992) widely used approach
         # of choosing functions 90% of the time and leaves 10% of the time.
-        probs = np.array([0.9 if isinstance(node, _Function) else 0.1
+        # probs = np.array([0.9 if isinstance(node, _Function) else 0.1
+        #                   for node in program])
+        # for factor purpose. only function can be replaced...
+        probs = np.array([1 if isinstance(node, _Function) else 0
                           for node in program])
         probs = np.cumsum(probs / probs.sum())
         start = np.searchsorted(probs, random_state.uniform())
@@ -754,9 +790,8 @@ class _Program(object):
         program = copy(self.program)
 
         # Get the nodes to modify
-        mutate = np.where(random_state.uniform(size=len(program)) <
-                          self.p_point_replace)[0]
-
+        mutate = np.where(random_state.uniform(size=len(program)) < self.p_point_replace)[0]
+        # todo
         for node in mutate:
             if isinstance(program[node], _Function):
                 arity = program[node].arity
@@ -767,16 +802,26 @@ class _Program(object):
                 program[node] = replacement
             else:
                 # We've got a terminal, add a const or variable
-                if self.const_range is not None:
-                    terminal = random_state.randint(self.n_features + 1)
-                else:
+                # if self.const_range is not None:
+                #     terminal = random_state.randint(self.n_features + 1)
+                # else:
+                #     terminal = random_state.randint(self.n_features)
+                # if terminal == self.n_features:
+                #     terminal = random_state.uniform(*self.const_range)
+                #     if self.const_range is None:
+                #         # We should never get here
+                #         raise ValueError('A constant was produced with '
+                #                          'const_range=None.')
+                types_ = self.infer_types()
+                needed_type = types_[node]
+                if needed_type == int:
+                    terminal = random_state.randint(*self.int_range)
+                elif needed_type == float:
+                    terminal = random_state.uniform(*self.float_range)
+                elif needed_type == np.ndarray:
                     terminal = random_state.randint(self.n_features)
-                if terminal == self.n_features:
-                    terminal = random_state.uniform(*self.const_range)
-                    if self.const_range is None:
-                        # We should never get here
-                        raise ValueError('A constant was produced with '
-                                         'const_range=None.')
+                else:
+                    raise NotImplementedError()
                 program[node] = terminal
 
         return program, list(mutate)
